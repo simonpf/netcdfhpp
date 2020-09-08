@@ -184,7 +184,7 @@ struct TypeProperties<int> {
   static constexpr auto write_array = &nc_put_vara_int;
   static constexpr auto write_value = &nc_put_var1_int;
   static constexpr auto write_strided = &nc_put_vars_int;
-  static constexpr auto read = &nc_put_var_int;
+  static constexpr auto read = &nc_get_var_int;
   static constexpr auto read_array = &nc_get_vara_int;
   static constexpr auto read_value = &nc_get_var1_int;
   static constexpr auto read_strided = &nc_get_vars_int;
@@ -197,7 +197,7 @@ struct TypeProperties<float> {
   static constexpr auto write_array = &nc_put_vara_float;
   static constexpr auto write_value = &nc_put_var1_float;
   static constexpr auto write_strided = &nc_put_vars_float;
-  static constexpr auto read = &nc_put_var_float;
+  static constexpr auto read = &nc_get_var_float;
   static constexpr auto read_array = &nc_get_vara_float;
   static constexpr auto read_value = &nc_get_var1_float;
   static constexpr auto read_strided = &nc_get_vars_float;
@@ -210,7 +210,7 @@ struct TypeProperties<double> {
   static constexpr auto write_array = &nc_put_vara_double;
   static constexpr auto write_value = &nc_put_var1_double;
   static constexpr auto write_strided = &nc_put_vars_double;
-  static constexpr auto read = &nc_put_var_double;
+  static constexpr auto read = &nc_get_var_double;
   static constexpr auto read_array = &nc_get_vara_double;
   static constexpr auto read_value = &nc_get_var1_double;
   static constexpr auto read_strided = &nc_get_vars_double;
@@ -223,7 +223,7 @@ struct TypeProperties<char> {
   static constexpr auto write_array = &nc_put_vara_schar;
   static constexpr auto write_value = &nc_put_var1_schar;
   static constexpr auto write_strided = &nc_put_vars_schar;
-  static constexpr auto read = &nc_put_var_schar;
+  static constexpr auto read = &nc_get_var_schar;
   static constexpr auto read_array = &nc_get_vara_schar;
   static constexpr auto read_value = &nc_get_var1_schar;
   static constexpr auto read_strided = &nc_get_vars_schar;
@@ -340,6 +340,18 @@ public:
     parse_dimensions();
   }
 
+  /** Write data to variable.
+     *
+     * @tparam T The datatype to write to the variable.
+     * @param data Start pointer to the destination of the read operation.
+     */
+  template <typename T>
+  void write(T* data) {
+    using TypeTraits = TypeProperties<T>;
+    check_type<T>();
+    detail::assert_write_mode(*file_ptr_);
+    TypeTraits::write(parent_id_, id_, data);
+  }
 
   /** Write data to variable.
    *
@@ -364,7 +376,20 @@ public:
         parent_id_, id_, starts.data(), counts.data(), data);
   }
 
-  /** Read data from variable.
+    /** Read all data from variable.
+     *
+     * @tparam T The datatype to write to the variable.
+     * @param data Start pointer to the destination of the read operation.
+     */
+    template <typename T>
+    void read(T* data) {
+        using TypeTraits = TypeProperties<T>;
+        check_type<T>();
+        detail::assert_write_mode(*file_ptr_);
+        TypeTraits::read(parent_id_, id_, data);
+    }
+
+  /** Read hyperslab of data from variable.
     *
     * Read data from hyperslab of variable memory.
     *
