@@ -83,7 +83,12 @@ void assert_define_mode(int nc_id) {
 // Enum constants
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class CreationMode { Clobber = NC_CLOBBER, NoClobber = NC_NOCLOBBER };
+enum class CreationMode {
+    /// Overwrite existing file.
+    Clobber = NC_CLOBBER | NC_NETCDF4,
+    /// Avoid overwriting existing file.
+    NoClobber = NC_NOCLOBBER | NC_NETCDF4
+};
 
 enum class OpenMode {
   Write = NC_WRITE,
@@ -464,6 +469,25 @@ class Group {
     }
   }
 
+    // Parses sub-groups of this group
+    void parse_groups() {
+        auto group_ids = std::make_unique<int[]>(n_groups_);
+        int error = nc_inq_grps(id_, 0, group_ids.get());
+        detail::handle_error("Error inquiring group IDs:", error);
+        for (int i = 0; i < n_groups_; ++i) {
+            int group_id = group_ids[i];
+            size_t name_length = 0;
+            error = nc_inq_grpname_len(group_id, &name_length);
+            detail::handle_error("Error inquiring group name length:", error);
+            auto name_bfr = std::make_unique<char[]>(name_length);
+            error = nc_inq_grpname(group_id, name_bfr.get());
+            detail::handle_error("Error inquiring group name:", error);
+
+            Group group{file_ptr_, group_id, name_bfr.get()};
+            groups_[group.get_name()] = group;
+        }
+    }
+
   // Ensure that file is in define mode.
   void assert_define_mode() { detail::assert_define_mode(id_); }
 
@@ -472,6 +496,7 @@ class Group {
 
 public:
 
+    Group() {}
   /** Create new group.
     *
     * Creates a new group and parses its dimensions, variables and attributes.
@@ -499,8 +524,8 @@ public:
 
     parse_dimensions();
     parse_variables();
+    parse_groups();
     //parse_attributes();
-    //parse_groups();
   }
 
   /** Add dimension to group.
@@ -535,11 +560,26 @@ public:
     return dimensions_[name];
   }
 
-    void sync() {
-        assert_write_mode();
-        int error = nc_sync(id_);
-        detail::handle_error("Error entering define mode: ", error);
-    }
+  /** Add sub-group to group.
+     *
+     * @param Name of the group to add.
+     * @return The newly created group.
+     */
+  Group add_group(std::string name) {
+    assert_define_mode();
+    int group_id = 0;
+    int error = nc_def_grp(id_, name.c_str(), &group_id);
+    detail::handle_error("Error creating group: ", error);
+    sync();
+    groups_[name] = Group(file_ptr_, group_id, name);
+    return groups_[name];
+  }
+
+  void sync() {
+    assert_write_mode();
+    int error = nc_sync(id_);
+    detail::handle_error("Error entering define mode: ", error);
+  }
 
   /** Add variable to group
     *
@@ -609,6 +649,36 @@ public:
     throw std::runtime_error(msg.str());
   }
 
+  /// The group name.
+  std::string get_name() const { return name_; }
+
+  /** Retrieve group by name.
+    *
+    * @param name Name of the group.
+    * @return The group object corresponding to the given name.
+    */
+  Group get_group(std::string name) {
+      auto found = groups_.find(name);
+      if (found != groups_.end()) {
+          return found->second;
+      }
+      std::stringstream msg;
+      msg << "Group " << name << " not found in variables.";
+      throw std::runtime_error(msg.str());
+  }
+
+    /** Get vector of group names.
+     * @return Vector containing the names this group's subgroups.
+     */
+  std::vector<std::string> get_group_names() {
+    std::vector<std::string> names{};
+    names.reserve(groups_.size());
+    for (auto& pair : groups_) {
+      names.push_back(pair.second.get_name());
+    }
+    return names;
+  }
+
  protected:
   std::shared_ptr<detail::FileID> file_ptr_;
   int id_;
@@ -616,6 +686,7 @@ public:
   int n_dims_, n_vars_, n_groups_, n_attrs_, n_unl_dims_;
   std::map<std::string, Dimension> dimensions_ = {};
   std::map<std::string, Variable> variables_ = {};
+  std::map<std::string, Group> groups_ = {};
 };
 
 ////////////////////////////////////////////////////////////////////////////////

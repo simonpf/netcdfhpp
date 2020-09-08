@@ -90,6 +90,29 @@ TEST_CASE( "create_and_read_variable", "[netcdf]" ) {
     REQUIRE(int_var.get_dimensions().size() == 3);
 }
 
+TEST_CASE( "create_and_parse_groups", "[netcdf]" ) {
+
+    std::string name = "test_create_and_parse_groups.nc";
+    auto file = create_test_file(name);
+
+    auto group_1 = file.add_group("test_group_1");
+    auto group_2 = group_1.add_group("test_group_2");
+    file.close();
+
+    file = open_test_file(name);
+    auto group_names_1 = file.get_group_names();
+    REQUIRE(group_names_1.size() == 1);
+    auto group_1_retrieved = file.get_group(group_names_1[0]);
+    REQUIRE(group_1_retrieved.get_name() == group_1.get_name());
+    REQUIRE(group_1_retrieved.get_group_names() == group_1.get_group_names());
+
+    auto group_names_2 = group_1_retrieved.get_group_names();
+    REQUIRE(group_names_2.size() == 1);
+    auto group_2_retrieved = group_1.get_group(group_names_2[0]);
+    REQUIRE(group_2_retrieved.get_name() == group_2.get_name());
+    REQUIRE(group_2_retrieved.get_group_names() == group_2.get_group_names());
+}
+
 TEST_CASE( "test_write_variable_int", "[netcdf]" ) {
 
     std::string name = "test_write_variable.nc";
