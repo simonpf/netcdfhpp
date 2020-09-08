@@ -79,6 +79,10 @@ void assert_define_mode(int nc_id) {
 
 }  // namespace detail
 
+////////////////////////////////////////////////////////////////////////////////
+// Enum constants
+////////////////////////////////////////////////////////////////////////////////
+
 enum class CreationMode { Clobber = NC_CLOBBER, NoClobber = NC_NOCLOBBER };
 
 enum class OpenMode {
@@ -166,10 +170,10 @@ std::ostream& operator<<(std::ostream& out, const Type& t) {
 }
 
 template <typename T>
-struct TypeMap;
+struct TypeProperties;
 
 template <>
-struct TypeMap<int> {
+struct TypeProperties<int> {
   static constexpr Type value = Type::Int;
   static constexpr auto write = &nc_put_var_int;
   static constexpr auto write_array = &nc_put_vara_int;
@@ -182,7 +186,7 @@ struct TypeMap<int> {
 };
 
 template <>
-struct TypeMap<float> {
+struct TypeProperties<float> {
   static constexpr Type value = Type::Float;
   static constexpr auto write = &nc_put_var_float;
   static constexpr auto write_array = &nc_put_vara_float;
@@ -195,7 +199,7 @@ struct TypeMap<float> {
 };
 
 template <>
-struct TypeMap<double> {
+struct TypeProperties<double> {
   static constexpr Type value = Type::Double;
   static constexpr auto write = &nc_put_var_double;
   static constexpr auto write_array = &nc_put_vara_double;
@@ -208,7 +212,7 @@ struct TypeMap<double> {
 };
 
 template <>
-struct TypeMap<char> {
+struct TypeProperties<char> {
   static constexpr Type value = Type::Char;
   static constexpr auto write = &nc_put_var_schar;
   static constexpr auto write_array = &nc_put_vara_schar;
@@ -220,27 +224,69 @@ struct TypeMap<char> {
   static constexpr auto read_strided = &nc_get_vars_schar;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+// NetCDF Dimension
+////////////////////////////////////////////////////////////////////////////////
+/** NetCDF Dimension
+ *
+ * The Dimension class represents a dimension in a NetCDF file.
+ */
 struct Dimension {
   Dimension() {}
 
+  /** Create dimension
+   *
+   * Creates new dimension object setting only its ID. The name
+   * and size members can then be used to call nc_inq_dim in order
+   * to infer the properties of the dimension.
+   *
+   * @param id_: The NetCDF ID that identifies the dimension in the
+   * file.
+   */
   Dimension(int id_) : id(id_) {}
 
+  /** Create new dimension object.
+   *
+   * Creates new dimension object, that is not yes tied to a dimension
+   * in a NetCDF file. This means that setting the id member is still
+   * required after the dimension has been successfully created using
+   * nc_def_dim.
+   *
+   * @param name_
+   * @param size_
+   */
   Dimension(std::string name_, int size_) {
     name_.copy(name, name_.size());
     name[name_.size()] = 0;
     size = size_;
   }
 
+  /// Is this dimension unlimitied?
   bool is_unlimited() { return unlimited; }
 
+  /// The dimension ID that is used by the NetCDF-c library.
   int id = 0;
+  /// The size of the dimension.
   size_t size = 0;
+  /// Whether or not this is an unlimited dimension.
   bool unlimited = false;
+  /// The name of the dimension.
   char name[NC_MAX_NAME + 1] = {0};
 };
 
+////////////////////////////////////////////////////////////////////////////////
+// NetCDF Variable
+////////////////////////////////////////////////////////////////////////////////
+/** NetCDF variable
+ *
+ * Represents a variable in a NetCDF File.
+ *
+ */
 class Variable {
- public:
+
+ private:
+
+  // Parses dimensions of this variable.
   void parse_dimensions() {
     int n_dims = dimensions_.capacity();
     auto dim_ids = std::make_unique<int[]>(n_dims);
@@ -256,8 +302,29 @@ class Variable {
     }
   }
 
+  // Checks that NetCDF type is compatible with provided C++ type.
+  template <typename T>
+  void check_type() {
+      if (TypeProperties<T>::value != type_) {
+          std::stringstream msg;
+          msg << "Provided type " << TypeProperties<T>::value << " is incompatible "
+              << "with NetCDF type " << type_ << std::endl;
+          throw std::runtime_error(msg.str());
+      }
+  }
+
+public:
+
   Variable() {}
 
+  /** Create variable.
+   *
+   * This creates a variable and parses its dimensions and attributes.
+   *
+   * @param file_ptr Shared pointer to file object to which this variable belongs.
+   * @param parent_id NetCDF ID of the parent group of this variable.
+   * @param id The variabl ID that identifies this variable in the NetCDF-c library.
+   */
   Variable(std::shared_ptr<detail::FileID> file_ptr, int parent_id, int id)
       : id_(id), parent_id_(parent_id), file_ptr_(file_ptr) {
     int n_dims, n_attrs, type;
@@ -268,40 +335,56 @@ class Variable {
     parse_dimensions();
   }
 
-  template<typename T>
-  void check_type() {
-    if (TypeMap<T>::value != type_) {
-        std::stringstream msg;
-        msg << "Provided type " << TypeMap<T>::value << " is incompatible "
-            << "with NetCDF type " << type_ << std::endl;
-        throw std::runtime_error(msg.str());
-    }
-  }
 
+  /** Write data to variable.
+   *
+   * Write data to hyperslab of variable memory.
+   *
+   * @tparam T The datatype to write to the variable.
+   * @tparam N_DIM The number of dimensions of the variable.
+   * @param starts Array containing the start indices of the hyper-slab specifying
+   *     the target for the write operation.
+   * @param counts Array containing the lengths of the hyper-slab specifying the
+   *     the target for the write operation.
+   * @param data Start pointer to the data to write to the variable.
+   */
   template <typename T, size_t N_DIMS>
   void write(std::array<size_t, N_DIMS> starts,
              std::array<size_t, N_DIMS> counts,
              const T* data) {
-    using TypeTraits = TypeMap<T>;
+    using TypeTraits = TypeProperties<T>;
     check_type<T>();
     detail::assert_write_mode(*file_ptr_);
     TypeTraits::write_array(
         parent_id_, id_, starts.data(), counts.data(), data);
   }
 
-    template <typename T, size_t N_DIMS>
-    void read(std::array<size_t, N_DIMS> starts,
-               std::array<size_t, N_DIMS> counts,
-               T* data) {
-        using TypeTraits = TypeMap<T>;
-        check_type<T>();
-        detail::assert_write_mode(*file_ptr_);
-        TypeTraits::read_array(
-            parent_id_, id_, starts.data(), counts.data(), data);
-    }
+  /** Read data from variable.
+    *
+    * Read data from hyperslab of variable memory.
+    *
+    * @tparam T The datatype to write to the variable.
+    * @tparam N_DIM The number of dimensions of the variable.
+    * @param starts Array containing the start indices of the hyper-slab specifying
+    *     the source of the read operation.
+    * @param counts Array containing the lengths of the hyper-slab specifying the
+    *     the source of the read operation.
+    * @param data Start pointer to the destination of the read operation.
+    */
+  template <typename T, size_t N_DIMS>
+  void read(std::array<size_t, N_DIMS> starts,
+            std::array<size_t, N_DIMS> counts,
+            T* data) {
+    using TypeTraits = TypeProperties<T>;
+    check_type<T>();
+    detail::assert_write_mode(*file_ptr_);
+    TypeTraits::read_array(parent_id_, id_, starts.data(), counts.data(), data);
+  }
 
+  /// Return reference to dimension vector.
   const std::vector<Dimension>& get_dimensions() const { return dimensions_; }
 
+  /// Total number of elements in the variable's data array.
   size_t size() {
     size_t result = 1;
     for (auto& d : dimensions_) {
@@ -310,6 +393,7 @@ class Variable {
     return result;
   }
 
+  /// Array containing the sizes of the variable's data array along each dimension.
   std::vector<size_t> shape() {
     std::vector<size_t> result(dimensions_.size());
     for (size_t i = 0; i < result.size(); ++i) {
@@ -318,6 +402,7 @@ class Variable {
     return result;
   }
 
+  /// The variable's name.
   std::string get_name() const { return name_; }
 
  private:
@@ -328,6 +413,9 @@ class Variable {
   std::shared_ptr<detail::FileID> file_ptr_ = nullptr;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+// NetCDF Group
+////////////////////////////////////////////////////////////////////////////////
 /** A NetCDF group.
   *
   * A NetCDF group contains dimensions, variables, attributes
@@ -335,7 +423,9 @@ class Variable {
   *
   */
 class Group {
- public:
+ private:
+
+  // Parses dimensions in this group.
   void parse_dimensions() {
     auto dim_ids = std::make_unique<int[]>(n_dims_);
     int error = nc_inq_dimids(id_, 0, dim_ids.get(), 0);
@@ -362,6 +452,7 @@ class Group {
     }
   }
 
+  // Parses variables in this group.
   void parse_variables() {
     auto var_ids = std::make_unique<int[]>(n_dims_);
     int error = nc_inq_varids(id_, 0, var_ids.get());
@@ -373,6 +464,22 @@ class Group {
     }
   }
 
+  // Ensure that file is in define mode.
+  void assert_define_mode() { detail::assert_define_mode(id_); }
+
+  // Ensure that file in write mode.
+  void assert_write_mode() { detail::assert_write_mode(id_); }
+
+public:
+
+  /** Create new group.
+    *
+    * Creates a new group and parses its dimensions, variables and attributes.
+    *
+    * @param file_ptr Shared pointer to FileID object managing the NetCDF file.
+    * @param id The group ID that identifies the group in the NetCDF-c library.
+    * @param name The name of the group.
+    */
   Group(std::shared_ptr<detail::FileID> file_ptr, int id, std::string name)
       : file_ptr_(file_ptr), id_(id), name_(name) {
     //
@@ -396,26 +503,28 @@ class Group {
     //parse_groups();
   }
 
-  void assert_define_mode() { detail::assert_define_mode(id_); }
-
-  void assert_write_mode() { detail::assert_write_mode(id_); }
-
-  void sync() {
-    assert_write_mode();
-    int error = nc_sync(id_);
-    detail::handle_error("Error entering define mode: ", error);
-  }
-
-  void add_dimension(std::string name, int size) {
+  /** Add dimension to group.
+    *
+    * @param name of the dimension.
+    * @param size The dimensions size.
+    * @return The newly created dimension.
+    */
+  Dimension add_dimension(std::string name, int size) {
     assert_define_mode();
     Dimension dim{name, size};
     int error = nc_def_dim(id_, name.c_str(), size, &dim.id);
     detail::handle_error("Error creating dimensions: ", error);
     dimensions_[name] = dim;
     sync();
+    return dimensions_[name];
   }
 
-  void add_dimension(std::string name) {
+  /** Add unlimited dimension to group.
+    *
+    * @param name of the dimension.
+    * @return The newly created dimension.
+    */
+  Dimension add_dimension(std::string name) {
     assert_define_mode();
     Dimension dim{name, -1};
     dim.unlimited = true;
@@ -423,8 +532,23 @@ class Group {
     detail::handle_error("Error creating dimensions: ", error);
     sync();
     dimensions_[name] = dim;
+    return dimensions_[name];
   }
 
+    void sync() {
+        assert_write_mode();
+        int error = nc_sync(id_);
+        detail::handle_error("Error entering define mode: ", error);
+    }
+
+  /** Add variable to group
+    *
+    * @param name of the dimension.
+    * @param dimension Vector of dimension names identifying the dimensions
+    *    of the variable.
+    * @type Type enumer specifying the variable type.
+    * @return Variable object representing the newly created variable
+    */
   Variable add_variable(std::string name,
                         std::vector<std::string> dimensions,
                         Type type) {
@@ -455,6 +579,11 @@ class Group {
     return variables_[name];
   }
 
+  /** Retrieve dimension by name.
+    *
+    * @param name Name of the dimension.
+    * @return The dimensions object corresponding to the given name.
+    */
   Dimension get_dimension(std::string name) {
     auto found = dimensions_.find(name);
     if (found != dimensions_.end()) {
@@ -465,6 +594,11 @@ class Group {
     throw std::runtime_error(msg.str());
   }
 
+  /** Retrieve variable by name.
+    *
+    * @param name Name of the variable.
+    * @return The variable object corresponding to the given name.
+    */
   Variable get_variable(std::string name) {
     auto found = variables_.find(name);
     if (found != variables_.end()) {
@@ -484,6 +618,9 @@ class Group {
   std::map<std::string, Variable> variables_ = {};
 };
 
+////////////////////////////////////////////////////////////////////////////////
+// NetCDF File
+////////////////////////////////////////////////////////////////////////////////
 /** A NetCDF4 file.
  *
  * The File class represents a NetCDF4 file. It provides
