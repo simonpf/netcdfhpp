@@ -459,7 +459,7 @@ class Group {
 
   // Parses variables in this group.
   void parse_variables() {
-    auto var_ids = std::make_unique<int[]>(n_dims_);
+    auto var_ids = std::make_unique<int[]>(n_vars_);
     int error = nc_inq_varids(id_, 0, var_ids.get());
     detail::handle_error("Error inquiring variable IDs:", error);
     for (int i = 0; i < n_vars_; ++i) {
