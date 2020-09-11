@@ -376,6 +376,23 @@ public:
         parent_id_, id_, starts.data(), counts.data(), data);
   }
 
+    /** Write single-valued variable.
+     *
+     * Write given value to a single-valued variable. If the variable is
+     * multi-valued, i.e. a (multi-dimensional) array, the value is
+     * written to the first element of the (linearized) array.
+     *
+     * @tparam The type of the variable.
+     * @param The value to write.
+     */
+    template <typename T>
+    void write(T t) {
+        using TypeTraits = TypeProperties<T>;
+        check_type<T>();
+        detail::assert_write_mode(*file_ptr_);
+        TypeTraits::write_value(parent_id_, id_, 0, &t);
+    }
+
     /** Read all data from variable.
      *
      * @tparam T The datatype to write to the variable.
@@ -411,6 +428,26 @@ public:
     TypeTraits::read_array(parent_id_, id_, starts.data(), counts.data(), data);
   }
 
+
+  /** Read single-valued variable.
+   *
+   * Read the value of a single-valued variable and returns it by value. If the
+   * variable is multi-valued, i.e. a (multi-dimensional) array, the first element
+   * of the (linearized) array is returned.
+   *
+   * @tparam The type of the variable.
+   * @return The value of the variable.
+   */
+  template <typename T>
+  T read() {
+      using TypeTraits = TypeProperties<T>;
+      check_type<T>();
+      T result;
+      detail::assert_write_mode(*file_ptr_);
+      TypeTraits::read_value(parent_id_, id_, 0, &result);
+      return result;
+  }
+
   /// Return reference to dimension vector.
   const std::vector<Dimension>& get_dimensions() const { return dimensions_; }
 
@@ -427,6 +464,15 @@ public:
   std::vector<size_t> shape() {
     std::vector<size_t> result(dimensions_.size());
     for (size_t i = 0; i < result.size(); ++i) {
+      result[i] = dimensions_[i].size;
+    }
+    return result;
+  }
+
+  template <typename Index, size_t N>
+  std::array<Index, N> get_shape_array() {
+    std::array<Index, N> result = {0};
+    for (size_t i = 0; i < N; ++i) {
       result[i] = dimensions_[i].size;
     }
     return result;
@@ -674,6 +720,12 @@ public:
     throw std::runtime_error(msg.str());
   }
 
+  /// Check whether group has variable of given name.
+  bool has_variable(std::string name) {
+    auto found = variables_.find(name);
+    return found != variables_.end();
+  }
+
   /// The group name.
   std::string get_name() const { return name_; }
 
@@ -702,6 +754,12 @@ public:
       names.push_back(pair.second.get_name());
     }
     return names;
+  }
+
+  /// Check whether group has subgroup of given name.
+  bool has_group(std::string name) {
+    auto found = groups_.find(name);
+    return found != groups_.end();
   }
 
  protected:

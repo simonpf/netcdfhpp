@@ -14,6 +14,7 @@ netcdf4::File create_test_file(std::string name) {
     file.add_variable("int_variable", dimensions, netcdf4::Type::Int);
     file.add_variable("float_variable", dimensions, netcdf4::Type::Float);
     file.add_variable("int_variable_fixed", {"dimension_1", "dimension_2"}, netcdf4::Type::Int);
+    file.add_variable("int_single_value", {}, netcdf4::Type::Int);
     return file;
 }
 
@@ -79,6 +80,11 @@ TEST_CASE( "create_and_read_variable", "[netcdf]" ) {
     REQUIRE(int_var.get_dimensions().size() == 3);
     REQUIRE(float_var.get_dimensions().size() == 3);
 
+    REQUIRE(file.has_variable("int_variable"));
+    REQUIRE(file.has_variable("float_variable"));
+    REQUIRE(!file.has_variable("iint_variable"));
+    REQUIRE(!file.has_variable("ffloat_variable"));
+
     //
     // Read file and request dimensions.
     //
@@ -98,6 +104,9 @@ TEST_CASE( "create_and_parse_groups", "[netcdf]" ) {
 
     auto group_1 = file.add_group("test_group_1");
     auto group_2 = group_1.add_group("test_group_2");
+    REQUIRE(file.has_group("test_group_1"));
+    REQUIRE(!file.has_group("test_group_2"));
+    REQUIRE(group_1.has_group("test_group_2"));
     file.close();
 
     file = open_test_file(name);
@@ -106,6 +115,9 @@ TEST_CASE( "create_and_parse_groups", "[netcdf]" ) {
     auto group_1_retrieved = file.get_group(group_names_1[0]);
     REQUIRE(group_1_retrieved.get_name() == group_1.get_name());
     REQUIRE(group_1_retrieved.get_group_names() == group_1.get_group_names());
+    REQUIRE(file.has_group("test_group_1"));
+    REQUIRE(!file.has_group("test_group_2"));
+    REQUIRE(group_1.has_group("test_group_2"));
 
     auto group_names_2 = group_1_retrieved.get_group_names();
     REQUIRE(group_names_2.size() == 1);
@@ -168,4 +180,21 @@ TEST_CASE( "test_read_write_variable", "[netcdf]" ) {
     for (size_t i = 0; i < int_var.size(); ++i) {
         REQUIRE(data[i] == data_read[i]);
     }
+}
+
+TEST_CASE( "test_read_write_single_value", "[netcdf]" ) {
+
+    std::string name = "test_singe_value.nc";
+    auto file = create_test_file(name);
+
+    auto int_var = file.get_variable("int_single_value");
+    int_var.write(99);
+    file.close();
+
+    file = open_test_file(name);
+    int_var = file.get_variable("int_single_value");
+    auto data_read = std::make_unique<int[]>(int_var.size());
+    int value = int_var.read<int>();
+
+    REQUIRE(value == 99);
 }
