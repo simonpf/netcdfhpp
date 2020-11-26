@@ -9,8 +9,8 @@
  *
  * Copyright: Simon Pfreundschuh, 2020
  */
-#ifndef __NETCDFPP__
-#define __NETCDFPP__
+#ifndef __NETCDF_HPP__
+#define __NETCDF_HPP__
 
 #include <map>
 #include <memory>
@@ -60,7 +60,7 @@ struct FileID {
   operator int() { return id; }
 
   int id = 0;
-  bool open = true;
+  bool open = false;
 };
 
 void assert_write_mode(int nc_id) {
@@ -795,6 +795,7 @@ class File : public Group {
     auto file = std::make_shared<detail::FileID>();
     int error = nc_create(path.c_str(), static_cast<int>(mode), &file->id);
     detail::handle_error("Error creating file: " + path, error);
+    file->open = true;
     return File(file);
   }
 
@@ -809,6 +810,7 @@ class File : public Group {
     auto file = std::make_shared<detail::FileID>();
     int error = nc_open(path.c_str(), static_cast<int>(mode), &file->id);
     detail::handle_error("Error opening file: " + path, error);
+    file->open = true;
     return File(file);
   }
 

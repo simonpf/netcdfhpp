@@ -1,6 +1,6 @@
 #define CATCH_CONFIG_MAIN
 #include "catch2/catch.hpp"
-#include <netcdfpp.hpp>
+#include <netcdf.hpp>
 #include <cassert>
 
 netcdf4::File create_test_file(std::string name) {
