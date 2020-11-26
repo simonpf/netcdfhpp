@@ -50,7 +50,7 @@ if (NOT CMAKE_VERSION VERSION_LESS 3.0)
     NO_CHECK_REQUIRED_COMPONENTS_MACRO # Eigen does not provide components
   )
 
-  export (TARGETS headers NAMESPACE netcdfhpp:: FILE netcdfhpp.cmake)
+  export (TARGETS headers NAMESPACE netcdfhpp:: FILE netcdfhppConfig.cmake)
   # Export Eigen3 package to CMake registry such that it can be easily found by
   # CMake even if it has not been installed to a standard directory.
   export (PACKAGE netcdfhpp)
