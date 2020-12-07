@@ -1,4 +1,4 @@
-include_directories(${CMAKE_SOURCE_DIR}/ext ${CMAKE_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/ext ${PROJECT_SOURCE_DIR}/include)
 
 if (NETCDF_FOUND)
 add_executable(test_interface "test_interface.cxx")

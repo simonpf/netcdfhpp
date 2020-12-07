@@ -22,7 +22,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g")
 # Find required packages
 #
 
-set (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+set (CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 find_package(NetCDF)
 
 #
@@ -38,14 +38,14 @@ if (NOT CMAKE_VERSION VERSION_LESS 3.0)
   add_library (headers INTERFACE)
   add_library (netcdfhpp::headers ALIAS headers)
   target_include_directories (headers INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   )
 
   install (TARGETS headers EXPORT netcdfhpp)
 
   configure_package_config_file (
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/netcdfhppConfig.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/netcdfhpp.cmake
+    ${PROJECT_SOURCE_DIR}/cmake/netcdfhppConfig.cmake.in
+    ${PROJECT_BINARY_DIR}/netcdfhpp.cmake
     INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/netcdfhpp
     NO_CHECK_REQUIRED_COMPONENTS_MACRO # Eigen does not provide components
   )
@@ -57,3 +57,5 @@ if (NOT CMAKE_VERSION VERSION_LESS 3.0)
 
   install (EXPORT netcdfhpp NAMESPACE netcdfhpp:: DESTINATION ${CMAKE_INSTALL_PREFIX}/netcdfhpp)
 endif (NOT CMAKE_VERSION VERSION_LESS 3.0)
+
+export (PACKAGE netcdfhpp)

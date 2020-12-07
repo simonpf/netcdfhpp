@@ -33,7 +33,7 @@ namespace detail {
  *        before the NetCDF error.
  * @param The NetCDF error code returned by the library call.
  */
-void handle_error(std::string error_message, int error_code) {
+inline void handle_error(std::string error_message, int error_code) {
   if (error_code != NC_NOERR) {
     std::stringstream error;
     error << error_message << "\n";
@@ -63,14 +63,14 @@ struct FileID {
   bool open = false;
 };
 
-void assert_write_mode(int nc_id) {
+inline void assert_write_mode(int nc_id) {
   int error = nc_enddef(nc_id);
   if (error != NC_ENOTINDEFINE) {
     detail::handle_error("Error leaving define mode: ", error);
   }
 }
 
-void assert_define_mode(int nc_id) {
+inline void assert_define_mode(int nc_id) {
   int error = nc_redef(nc_id);
   if (error != NC_EINDEFINE) {
     detail::handle_error("Error (re)entering define mode: ", error);
@@ -114,7 +114,7 @@ enum class Type {
   MaxAtomic = NC_MAX_ATOMIC_TYPE
 };
 
-std::ostream& operator<<(std::ostream& out, const Type& t) {
+inline std::ostream& operator<<(std::ostream& out, const Type& t) {
   std::string name = "";
   switch (t) {
     case Type::NotAType: {
